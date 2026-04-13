@@ -1,0 +1,33 @@
+<phpunit
+	bootstrap="bootstrap.php"
+	backupGlobals="false"
+	colors="true"
+	convertErrorsToExceptions="true"
+	convertNoticesToExceptions="true"
+	convertWarningsToExceptions="true"
+	>
+	<php>
+		<const name="BBP_TESTS_BUDDYPRESS" value="1" />
+	</php>
+	<testsuites>
+		<testsuite>
+			<directory suffix=".php">./testcases/</directory>
+		</testsuite>
+	</testsuites>
+	<groups>
+		<include>
+			<group>buddypress</group>
+		</include>
+	</groups>
+	<listeners>
+		<listener class="SpeedTrapListener" file="tests/phpunit/includes/speed-trap-listener.php">
+			<arguments>
+				<array>
+					<element key="slowThreshold">
+						<integer>100</integer>
+					</element>
+				</array>
+			</arguments>
+		</listener>
+	</listeners>
+</phpunit>

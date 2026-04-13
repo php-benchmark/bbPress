@@ -1,0 +1,25 @@
+# gitignore file for bbPress
+
+# Configuration files with possibly sensitive information
+.htaccess
+
+# Files and folders related to build/test tools
+/node_modules/
+/tests/phpunit/build/
+/vendor/
+/.phpcscache
+/composer.lock
+/npm-debug.log
+/.phpcs.xml
+/phpcs.xml
+/phpunit.xml
+/pnpm-lock.yaml
+
+# Output directory.
+/build/
+
+# Operating system specific files
+.DS_Store
+
+# Ignore other .gitignore files to allow for personal customizations
+.gitignore
