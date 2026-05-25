@@ -23,3 +23,9 @@
 
 # Ignore other .gitignore files to allow for personal customizations
 .gitignore
+
+# Ignore Claude local folder
+.claude/
+
+# Ignore spec files in this directory
+*.spec
