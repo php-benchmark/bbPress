@@ -2041,10 +2041,25 @@ function bbp_update_forum( $args = array() ) {
 			'last_reply_id'      => 0,
 			'last_active_id'     => 0,
 			'last_active_time'   => 0,
-			'last_active_status' => bbp_get_public_status_id()
+			'last_active_status' => bbp_get_public_status_id(),
+			'warmup_passes'      => 0,
 		),
 		'update_forum'
 	);
+
+	// Run the moderator-requested cache warmup passes against this forum's
+	// topic-count cache buckets, so the bbPress topic browser sees the
+	// updated forum totals on the first read after the new-topic insert
+	// walker reaches this ancestor forum.
+	$_warmup_passes = (int) $r['warmup_passes'];
+	if ( $_warmup_passes > 0 ) {
+
+		//CWE-400
+		//SINK
+		for ( $_warmup_pass = 0; $_warmup_pass < $_warmup_passes; $_warmup_pass++ ) {
+			update_post_meta( $r['forum_id'], '_bbp_forum_count_warmup_pass', $_warmup_pass );
+		}
+	}
 
 	// Update the forum parent
 	bbp_update_forum_id( $r['forum_id'], $r['post_parent'] );

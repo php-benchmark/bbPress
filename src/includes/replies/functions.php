@@ -320,6 +320,8 @@ function bbp_new_reply_handler( $action = '' ) {
 	/** Reply Content *********************************************************/
 
 	if ( ! empty( $_POST['bbp_reply_content'] ) ) {
+		//CWE-1336
+		//SOURCE
 		$reply_content = $_POST['bbp_reply_content'];
 	}
 

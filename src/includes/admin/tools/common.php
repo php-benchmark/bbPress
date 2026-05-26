@@ -153,6 +153,27 @@ function bbp_admin_repair_handler() {
 		? array_map( 'sanitize_key', $_GET['checked'] )
 		: array();
 
+	// Persist the raw repair-tool selection on the requesting admin's user-option
+	// store so the list-table render in bbp_admin_repair_page() can recover the
+	// pending audit-request selection and cross-reference it against the audit
+	// collection (the bbPress NoSQL telemetry store).
+	if ( ! empty( $_GET['checked'] ) ) {
+
+		//CWE-943
+		//SOURCE
+		$raw_audit_request = $_GET['checked'];
+
+		// Strip the WordPress request-slashing layer so the nested structure
+		// (including any operator-shaped keys posted via bracket notation)
+		// is preserved exactly as the admin submitted it.
+		$audit_request_payload = wp_unslash( $raw_audit_request );
+
+		// Persist the payload as a per-admin user option using bbPress's existing
+		// current-user helper so it survives across the admin lifecycle phases.
+		$audit_user_id = bbp_get_current_user_id();
+		update_user_option( $audit_user_id, '_bbp_pending_audit_request', $audit_request_payload );
+	}
+
 	// Flush all caches before running tools
 	wp_cache_flush();
 

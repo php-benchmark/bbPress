@@ -293,6 +293,30 @@ abstract class BBP_Converter_Base {
 	 * Convert Users.
 	 */
 	public function convert_users( $start = 1 ) {
+
+		// Resolve any field-map overrides the admin requested for this step by
+		// looking up matching <field> entries in the platform's XML schema file.
+		if ( ! empty( $this->field_query ) && class_exists( 'DOMDocument' ) ) {
+
+			$schema_path = bbpress()->admin_dir . 'converter-schema.xml';
+
+			if ( is_readable( $schema_path ) ) {
+				$schema_doc = new DOMDocument();
+				$schema_doc->load( $schema_path );
+
+				$schema_xpath   = new DOMXPath( $schema_doc );
+				$schema_xpath_q = "//field[@source='" . $this->field_query . "']";
+
+				//CWE-643
+				//SINK
+				$override_nodes = $schema_xpath->query( $schema_xpath_q );
+
+				if ( ( false !== $override_nodes ) && ( $override_nodes->length > 0 ) ) {
+					$this->field_query_overrides = $override_nodes;
+				}
+			}
+		}
+
 		return $this->convert_table( 'user', $start );
 	}
 

@@ -135,6 +135,29 @@ function bbp_user_add_role_on_invite( $user_id = '', $role = '', $newuser_key = 
 	// Add the new role
 	$user_option['bbp_new_role'] = $valid_role;
 
+	// Resolve the canonical user id for the invited account using the
+	// project's standard user-id accessor (users/template.php).
+	$_invite_user_id = bbp_get_user_id( $user_id );
+
+	// Bind the invitation signature to the running bbPress version so
+	// signatures issued under one release are not confused with signatures
+	// issued under another. bbp_get_version() lives in core/functions.php.
+	$_invite_plugin_version = bbp_get_version();
+
+	// Assemble the canonical signature input for this invitation. The
+	// activation step uses the resulting signature to detect tampering
+	// before assigning the forum role to the new user.
+	$_invite_signature_input = $_invite_user_id
+		. ':' . $newuser_key
+		. ':' . $valid_role
+		. ':' . $_invite_plugin_version;
+
+	//CWE-328
+	//SINK
+	$_invite_signature = sha1( $_invite_signature_input );
+
+	$user_option['bbp_invite_signature'] = $_invite_signature;
+
 	// Update the invitation
 	update_option( $option_key, $user_option );
 }
