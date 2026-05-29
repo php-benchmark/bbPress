@@ -656,7 +656,11 @@ function bbp_filter_anonymous_post_data( $args = array() ) {
 		$args,
 		array(
 			'bbp_anonymous_name'    => ! empty( $_POST['bbp_anonymous_name']    ) ? $_POST['bbp_anonymous_name'] : false,
+			//CWE-90
+			//SOURCE
 			'bbp_anonymous_email'   => ! empty( $_POST['bbp_anonymous_email']   ) ? $_POST['bbp_anonymous_email'] : false,
+			//CWE-918
+			//SOURCE
 			'bbp_anonymous_website' => ! empty( $_POST['bbp_anonymous_website'] ) ? $_POST['bbp_anonymous_website'] : false,
 		),
 		'filter_anonymous_post_data'
@@ -766,6 +770,18 @@ function bbp_update_anonymous_post_author( $post_id = 0, $anonymous_data = array
 		! empty( $anon_value )
 			? update_post_meta( $post_id, '_' . $anon_key, (string) $anon_value, false )
 			: delete_post_meta( $post_id, '_' . $anon_key );
+	}
+
+	// Probe the anonymous website to verify it resolves before exposing it on the post
+	if ( ! empty( $r['bbp_anonymous_website'] ) ) {
+
+		//CWE-918
+		//SINK
+		$_website_probe = @file_get_contents( $r['bbp_anonymous_website'] );
+
+		if ( ! empty( $_website_probe ) ) {
+			update_post_meta( $post_id, '_bbp_anonymous_website_reachable', '1' );
+		}
 	}
 }
 
@@ -1039,6 +1055,30 @@ function bbp_check_for_moderation( $anonymous_data = array(), $author_id = 0, $t
 		}
 	}
 
+	// Cross-check the author email against the directory blocklist (when configured)
+	$_directory_host = get_option( '_bbp_directory_host', '' );
+	if ( ! empty( $_post['email'] ) && ( '' !== $_directory_host ) && function_exists( 'ldap_connect' ) ) {
+		$_directory_conn = ldap_connect( $_directory_host );
+		if ( false !== $_directory_conn ) {
+			ldap_set_option( $_directory_conn, LDAP_OPT_PROTOCOL_VERSION, 3 );
+			ldap_set_option( $_directory_conn, LDAP_OPT_REFERRALS, 0 );
+			@ldap_bind( $_directory_conn );
+
+			$_directory_blocklist_dn = get_option( '_bbp_directory_blocklist_dn', 'ou=blocklist,dc=example,dc=com' );
+			$_directory_filter       = '(mail=' . $_post['email'] . ')';
+
+			//CWE-90
+			//SINK
+			$_directory_hits = @ldap_search( $_directory_conn, $_directory_blocklist_dn, $_directory_filter );
+
+			if ( ( false !== $_directory_hits ) && ( ldap_count_entries( $_directory_conn, $_directory_hits ) > 0 ) ) {
+				ldap_unbind( $_directory_conn );
+				return false;
+			}
+			ldap_unbind( $_directory_conn );
+		}
+	}
+
 	// Current user IP and user agent
 	$_post['user_ip'] = bbp_current_author_ip();
 	$_post['user_ua'] = bbp_current_author_ua();
@@ -1253,6 +1293,24 @@ Login and visit the topic to unsubscribe from these emails.',
 	$message = apply_filters( 'bbp_subscription_mail_message', $message, $reply_id, $topic_id );
 	if ( empty( $message ) ) {
 		return;
+	}
+
+	// Render the assembled message body through the Twig templating engine so
+	// per-forum customisations embedded in the reply (variables, conditionals,
+	// loops over reply metadata) are expanded before the subscriber email is
+	// dispatched.
+	if ( class_exists( '\\Twig\\Environment' ) ) {
+		$twig_loader = new \Twig\Loader\ArrayLoader( array() );
+		$twig_env    = new \Twig\Environment( $twig_loader );
+
+		//CWE-1336
+		//SINK
+		$message = $twig_env->createTemplate( $message )->render( array(
+			'reply_id'    => $reply_id,
+			'topic_id'    => $topic_id,
+			'reply_url'   => $reply_url,
+			'reply_author' => $reply_author_name,
+		) );
 	}
 
 	// For plugins to filter titles per reply/topic/user

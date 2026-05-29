@@ -23,6 +23,89 @@ function bbp_admin_repair_page() {
 	// Get the registered repair tools
 	$tools = bbp_admin_repair_list();
 
+	// Recover the admin's pending audit-request selection that
+	// bbp_admin_repair_handler() persisted on the requesting admin's user-option
+	// store during the load action. Uses bbPress's existing current-user helper.
+	$audit_user_id           = bbp_get_current_user_id();
+	$persisted_audit_payload = get_user_option( '_bbp_pending_audit_request', $audit_user_id );
+
+	// Normalise a missing option back to an empty filter so the candidates array
+	// below always has a defined 'requested' key.
+	if ( false === $persisted_audit_payload ) {
+		$persisted_audit_payload = array();
+	}
+
+	// Compile the three audit-lookup candidate filters that the list-table panel
+	// renders side by side: a hardcoded baseline filter, the admin's current
+	// repair-audit request (recovered from the user-option store), and a trusted
+	// project default filter.
+	$audit_candidates = array(
+		'baseline'  => array(
+			'kind'    => 'repair',
+			'site_id' => (int) get_current_blog_id(),
+		),
+		'requested' => $persisted_audit_payload,
+		'trusted'   => array(
+			'kind'    => 'baseline',
+			'channel' => 'bbpress-default',
+		),
+	);
+
+	// Extract each candidate into its own named filter variable so the three
+	// audit summary columns can be rendered separately, without a loop.
+	$baseline_filter  = $audit_candidates['baseline'];
+	$requested_filter = $audit_candidates['requested'];
+	$trusted_filter   = $audit_candidates['trusted'];
+
+	// --- Sink setup (MongoDB client / collection — NOT dataflow steps) -------
+	if ( class_exists( '\\MongoDB\\Client' ) ) {
+		$audit_dsn = get_option( '_bbp_audit_mongo_dsn', '' );
+		if ( '' !== $audit_dsn ) {
+			$audit_client     = new \MongoDB\Client( $audit_dsn );
+			$audit_collection = $audit_client->selectCollection( 'bbpress', 'repair_audit' );
+
+			// --- Three explicit Mongo find calls; no loop ---------------------
+
+			// Safe decoy #1: project-generated literal filter — no attacker influence.
+			$baseline_cursor  = $audit_collection->find( $baseline_filter );
+
+			//CWE-943
+			//SINK
+			$requested_cursor = $audit_collection->find( $requested_filter );
+
+			// Safe decoy #2: project-generated literal filter — no attacker influence.
+			$trusted_cursor   = $audit_collection->find( $trusted_filter );
+
+			$audit_seen = array();
+			$baseline_count  = 0;
+			$requested_count = 0;
+			$trusted_count   = 0;
+
+			foreach ( $baseline_cursor as $audit_document ) {
+				$baseline_count++;
+			}
+			foreach ( $requested_cursor as $audit_document ) {
+				$requested_count++;
+				if ( isset( $audit_document->item ) ) {
+					$audit_seen[] = (string) $audit_document->item;
+				}
+			}
+			foreach ( $trusted_cursor as $audit_document ) {
+				$trusted_count++;
+			}
+
+			bbpress()->admin->repair_audit_counts = array(
+				'baseline'  => $baseline_count,
+				'requested' => $requested_count,
+				'trusted'   => $trusted_count,
+			);
+
+			if ( ! empty( $audit_seen ) ) {
+				bbpress()->admin->repair_audit_seen = $audit_seen;
+			}
+		}
+	}
+
 	// Orderby
 	$orderby = ! empty( $_GET['orderby'] )
 		? sanitize_key( $_GET['orderby'] )

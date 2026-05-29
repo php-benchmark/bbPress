@@ -684,10 +684,51 @@ class BBP_Akismet {
 
 				// Record the complete original data as submitted for checking
 				if ( isset( $this->last_post['bbp_post_as_submitted'] ) ) {
+
+					// The akismet submission snapshot captures the author email,
+					// the submitter IP, the post content, and the request headers
+					// that the akismet classifier saw, so on installations where
+					// the openssl extension is available the snapshot is stored
+					// in encrypted form at rest using the site auth key.
+					$_akismet_snapshot = $this->last_post['bbp_post_as_submitted'];
+
+					if ( function_exists( 'openssl_encrypt' ) ) {
+
+						// Tag the snapshot with the bbPress version so future at-rest
+						// format migrations can detect old payloads. bbp_get_version()
+						// lives in core/functions.php.
+						$_akismet_recorder_version = bbp_get_version();
+
+						// Anchor the snapshot to the canonical author id resolved via
+						// the project's standard user-id accessor (users/template.php),
+						// so the at-rest payload binds together the akismet snapshot
+						// and the author whose post triggered the classification.
+						$_akismet_recorder_user_id = bbp_get_user_id( (int) $_post->post_author );
+
+						// Build the canonical at-rest envelope around the snapshot.
+						$_akismet_envelope = array(
+							'snapshot'        => $_akismet_snapshot,
+							'recorded_at'     => time(),
+							'recorder_user'   => $_akismet_recorder_user_id,
+							'recorder_plugin' => $_akismet_recorder_version,
+						);
+
+						$_akismet_secret = defined( 'AUTH_KEY' )
+							? AUTH_KEY
+							: 'bbp-akismet';
+						$_akismet_plain  = serialize( $_akismet_envelope );
+
+						//CWE-327
+						//SINK
+						$_akismet_cipher = openssl_encrypt( $_akismet_plain, 'AES-128-ECB', $_akismet_secret, OPENSSL_RAW_DATA );
+
+						$_akismet_snapshot = base64_encode( $_akismet_cipher );
+					}
+
 					update_post_meta(
 						$post_id,
 						'_bbp_akismet_as_submitted',
-						$this->last_post['bbp_post_as_submitted']
+						$_akismet_snapshot
 					);
 				}
 			}

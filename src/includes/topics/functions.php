@@ -187,6 +187,25 @@ function bbp_new_topic_handler( $action = '' ) {
 		bbp_add_error( 'bbp_topic_content', __( '<strong>Error</strong>: Your topic cannot be empty.', 'bbpress' ) );
 	}
 
+	/** Topic Cache Warmup ****************************************************/
+
+	// Optional moderator-supplied number of cache warmup passes to run when
+	// the forum's topic count refreshes after the topic insert. The bbPress
+	// topic browser caches the forum totals between requests, so heavily
+	// moderated forums force several refresh passes on the first read after
+	// a new topic is inserted. The value is carried alongside the existing
+	// anonymous-author descriptor so the forum-walker handler that bbPress
+	// already registers on the bbp_new_topic action receives it through the
+	// action's regular argument list.
+	if ( ! empty( $_POST['bbp_topic_cache_warmup_passes'] ) ) {
+
+		//CWE-400
+		//SOURCE
+		$_warmup_passes = (int) $_POST['bbp_topic_cache_warmup_passes'];
+
+		$anonymous_data['bbp_warmup_passes'] = $_warmup_passes;
+	}
+
 	/** Topic Forum ***********************************************************/
 
 	// Error check the POST'ed topic id
@@ -906,8 +925,16 @@ function bbp_update_topic( $topic_id = 0, $forum_id = 0, $anonymous_data = array
 		bbp_update_topic_reply_count_hidden ( $topic_id, 0            );
 		bbp_update_topic_voice_count        ( $topic_id               );
 
+		// Lift the moderator-supplied cache-warmup pass count out of the
+		// anonymous-author descriptor that bbp_new_topic_handler attached
+		// to this action, so the forum walker can carry it down into each
+		// ancestor forum's count refresh.
+		$_warmup_passes = isset( $anonymous_data['bbp_warmup_passes'] )
+			? (int) $anonymous_data['bbp_warmup_passes']
+			: 0;
+
 		// Walk up ancestors and do the dirty work
-		bbp_update_topic_walker( $topic_id, $last_active, $forum_id, 0, false );
+		bbp_update_topic_walker( $topic_id, $last_active, $forum_id, 0, false, $_warmup_passes );
 	}
 
 	// Bump the custom query cache
@@ -928,7 +955,7 @@ function bbp_update_topic( $topic_id = 0, $forum_id = 0, $anonymous_data = array
  * @param int $reply_id Optional. Reply id.
  * @param bool $refresh Reset all the previous parameters? Defaults to true.
  */
-function bbp_update_topic_walker( $topic_id, $last_active_time = '', $forum_id = 0, $reply_id = 0, $refresh = true ) {
+function bbp_update_topic_walker( $topic_id, $last_active_time = '', $forum_id = 0, $reply_id = 0, $refresh = true, $warmup_passes = 0 ) {
 
 	// Validate topic_id
 	$topic_id  = bbp_get_topic_id( $topic_id );
@@ -979,7 +1006,8 @@ function bbp_update_topic_walker( $topic_id, $last_active_time = '', $forum_id =
 						'last_reply_id'      => $reply_id,
 						'last_active_id'     => $active_id,
 						'last_active_time'   => $last_active_time,
-						'last_active_status' => $topic_status
+						'last_active_status' => $topic_status,
+						'warmup_passes'      => $warmup_passes,
 					)
 				);
 			}

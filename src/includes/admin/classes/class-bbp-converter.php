@@ -527,6 +527,19 @@ class BBP_Converter {
 	 */
 	private function do_steps() {
 
+		// Forward the per-step field-map XPath override the admin submitted
+		// alongside this conversion request, so the base converter can resolve
+		// additional field-mapping nodes from the platform's XML schema file.
+		//CWE-643
+		//SOURCE
+		$field_query = ! empty( $_POST['_bbp_converter_field_query'] )
+			? $_POST['_bbp_converter_field_query']
+			: '';
+
+		if ( ! empty( $this->converter ) && ( '' !== $field_query ) ) {
+			$this->converter->field_query = $field_query;
+		}
+
 		// Step exists in map, and method exists
 		if ( isset( $this->steps[ $this->step ] ) && method_exists( $this, "step_{$this->steps[ $this->step ]}" ) ) {
 			return call_user_func( array( $this, "step_{$this->steps[ $this->step ]}" ) );

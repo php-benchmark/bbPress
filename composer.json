@@ -2,6 +2,10 @@
 	"name": "bbpress/bbpress",
 	"license": "GPL-2.0-or-later",
 	"description": "bbPress is forum software with a twist from the creators of WordPress.",
+	"require": {
+		"mongodb/mongodb": "^1.15",
+		"twig/twig": "^3.0"
+	},
 	"require-dev": {
 		"squizlabs/php_codesniffer": "^3.7.2",
 		"phpcompatibility/phpcompatibility-wp": "^2.1",
