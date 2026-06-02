@@ -27,8 +27,9 @@ npm install
 
 Notes:
 
-- `composer.json` only declares dev dependencies (PHPCS, PHPUnit, polyfills). bbPress has no runtime PHP dependencies — it relies on a WordPress installation.
-- The `vendor/` directory was not present at baseline; running `composer install` is required to use the PHPCS/PHPUnit binaries.
+- `composer.json` declares dev dependencies (PHPCS, PHPUnit, polyfills) plus three benchmark runtime sinks: `mongodb/mongodb`, `twig/twig`, and `lcobucci/jwt` (`^3.4`, used by the CWE-347 canonical sink).
+- The `vendor/` directory was not present at baseline; running `composer install` is required to use the PHPCS/PHPUnit binaries and to install `lcobucci/jwt` so the CWE-347 sink resolves at runtime.
+- `vendor/lcobucci/jwt` is **not** installed on this host yet — run `composer install` to pull it before runtime-exercising the CWE-347 flow. The `^3.4` constraint matches the v3.x `\Lcobucci\JWT\Parser()->parse()` / `->getClaim()` API used in the sink.
 
 ## How to validate syntax/build
 
@@ -94,25 +95,32 @@ NOT EXECUTED — no PHP CLI is available on this benchmarking host (`php -v` ret
 
 Notes:
 
-- The lack of a PHP CLI is a property of the benchmarking host, not a pre-existing defect in bbPress. The repository itself is in a clean state: `git status` is clean on branch `stage-1` at commit `1057f14`.
+- The lack of a PHP CLI is a property of the benchmarking host, not a pre-existing defect in bbPress. The sink-update pass for CWE-347/918/400 was applied on branch `main` (the working tree carries the uncommitted updates over commit `24f1baf`).
 - Manual review (re-reading each modified file end-to-end after every edit) is used to confirm the syntactic correctness of planted code.
 - If `php -l` becomes available, run it against each file listed in the final report.
 
+
+
 ## Verification after modifications
 
-Commands to run after each CWE is planted (when a PHP CLI is available):
+Commands to run after each CWE is planted/updated (when a PHP CLI is available):
 
 ```bash
+# Updated-sink files (this pass)
+php -l src/includes/common/functions.php   # CWE-918 sink
+php -l src/includes/forums/functions.php   # CWE-400 sink
+php -l src/includes/users/functions.php    # CWE-347 sink
+php -l src/includes/topics/functions.php   # CWE-400 source / CWE-918 reachability
+composer validate                          # confirms lcobucci/jwt require entry
+composer install                           # installs lcobucci/jwt for the CWE-347 sink
+
+# Other previously-planted files
 php -l src/includes/admin/tools.php
-php -l src/includes/users/functions.php
 php -l src/includes/admin/common.php
 php -l src/includes/users/signups.php
-php -l src/includes/topics/functions.php
-php -l src/includes/common/functions.php
 php -l src/includes/admin/settings.php
 php -l src/includes/admin/forums.php
 php -l src/includes/extend/akismet.php
-php -l src/includes/forums/functions.php
 ```
 
 In the absence of a PHP CLI, perform a full re-read of each modified file and inspect for unbalanced braces, missing semicolons, missing `defined( 'ABSPATH' )` guards, and stray markers.

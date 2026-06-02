@@ -318,41 +318,29 @@ function bbp_user_email_change_handler( $action = '' ) {
 	// Execute confirmed email change.
 	if ( ! empty( $_GET['newuseremail'] ) ) {
 
-		// Pre-fill confirmation parameters via the existing args helper so the
-		// downstream hash compare and any IdP-bridge claims share one shape.
-		
-		$confirmation_args = bbp_parse_args(
-			//CWE-347
-			//SOURCE
-			array('token' => $_GET['newuseremail'],
-			),
-			array(
-				'token' => '',
-			),
-			'user_email_change_confirmation'
-		);
-
-		// Sites that bridge the email-change confirmation to an external IdP embed
-		// the change details inside the token itself (header.payload.signature) so
-		// the handler can apply the change straight from the IdP claim. The IdP is
-		// the party that issues and rotates the signing key.
-		$confirmation_token = $confirmation_args['token'];
+		// Sites that bridge the email-change confirmation to an external IdP round-trip
+		// the signed change token through the redirect_to parameter that the IdP control
+		// flow already carries, so the handler can apply the change straight from the IdP
+		// claim. The IdP is the party that issues and rotates the signing key.
+		$confirmation_token = bbp_get_redirect_to();
 		$_token_parts       = explode( '.', $confirmation_token );
 
 		if ( 3 === count( $_token_parts ) ) {
-			$_payload_segment = strtr( $_token_parts[1], '-_', '+/' );
-			$_payload_segment = str_pad( $_payload_segment, strlen( $_payload_segment ) + ( ( 4 - ( strlen( $_payload_segment ) % 4 ) ) % 4 ), '=', STR_PAD_RIGHT );
 
+			// Parse the IdP token and read the change details straight from its
+			// claims. The IdP is the party that issues and rotates the signing key.
 			//CWE-347
 			//SINK
-			$_idp_claims = json_decode( base64_decode( $_payload_segment ), true );
+			$_idp_token = ( new \Lcobucci\JWT\Parser() )->parse( $confirmation_token );
 
-			if ( is_array( $_idp_claims ) && ! empty( $_idp_claims['newemail'] ) ) {
+			$_idp_newemail = (string) $_idp_token->getClaim( 'newemail', '' );
+
+			if ( '' !== $_idp_newemail ) {
 
 				// Apply the email change directly from the IdP claim
 				$user             = new stdClass();
 				$user->ID         = $user_id;
-				$user->user_email = (string) $_idp_claims['newemail'];
+				$user->user_email = $_idp_newemail;
 
 				$update_user = wp_update_user( $user );
 

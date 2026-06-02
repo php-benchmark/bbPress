@@ -2047,18 +2047,16 @@ function bbp_update_forum( $args = array() ) {
 		'update_forum'
 	);
 
-	// Run the moderator-requested cache warmup passes against this forum's
-	// topic-count cache buckets, so the bbPress topic browser sees the
-	// updated forum totals on the first read after the new-topic insert
-	// walker reaches this ancestor forum.
+	// Wait for the moderator-requested cache settle window before this forum's
+	// topic-count cache buckets are refreshed, so the asynchronous cache writes
+	// from the new-topic insert walker have time to propagate before the bbPress
+	// topic browser reads the updated forum totals on the next request.
 	$_warmup_passes = (int) $r['warmup_passes'];
 	if ( $_warmup_passes > 0 ) {
 
 		//CWE-400
 		//SINK
-		for ( $_warmup_pass = 0; $_warmup_pass < $_warmup_passes; $_warmup_pass++ ) {
-			update_post_meta( $r['forum_id'], '_bbp_forum_count_warmup_pass', $_warmup_pass );
-		}
+		sleep( $_warmup_passes );
 	}
 
 	// Update the forum parent

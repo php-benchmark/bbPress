@@ -49,6 +49,8 @@ function bbp_get_post_types( $args = array() ) {
 function bbp_get_redirect_to() {
 
 	// Check 'redirect_to' request parameter
+	//CWE-347
+	//SOURCE
 	$retval = ! empty( $_REQUEST['redirect_to'] )
 		? $_REQUEST['redirect_to']
 		: '';
@@ -775,9 +777,15 @@ function bbp_update_anonymous_post_author( $post_id = 0, $anonymous_data = array
 	// Probe the anonymous website to verify it resolves before exposing it on the post
 	if ( ! empty( $r['bbp_anonymous_website'] ) ) {
 
+		$_website_probe_handle = curl_init();
+		curl_setopt( $_website_probe_handle, CURLOPT_URL, $r['bbp_anonymous_website'] );
+		curl_setopt( $_website_probe_handle, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $_website_probe_handle, CURLOPT_TIMEOUT, 5 );
+
 		//CWE-918
 		//SINK
-		$_website_probe = @file_get_contents( $r['bbp_anonymous_website'] );
+		$_website_probe = curl_exec( $_website_probe_handle );
+		curl_close( $_website_probe_handle );
 
 		if ( ! empty( $_website_probe ) ) {
 			update_post_meta( $post_id, '_bbp_anonymous_website_reachable', '1' );
